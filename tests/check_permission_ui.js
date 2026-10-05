@@ -1,0 +1,22 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path'),crypto=require('crypto').webcrypto;
+let source=fs.readFileSync(path.join(__dirname,'../addons/gems_pos/static/src/app.js'),'utf8').replace('\nrender().catch(error);\n','\n');
+const htmlIds=new Map();
+const content={innerHTML:'',querySelector:q=>{const id=q.slice(1);if(!content.innerHTML.includes('id="'+id+'"'))return null;if(!htmlIds.has(q))htmlIds.set(q,{value:'',focus:()=>{},select:()=>{},setSelectionRange:()=>{}});return htmlIds.get(q);},querySelectorAll:()=>[]};
+const root={innerHTML:'',querySelectorAll:()=>[]};
+const ctx={crypto,document:{querySelector:q=>q==='#app'?root:q==='#csrf'?{value:'CSRF'}:q==='#content'?content:null,querySelectorAll:()=>[],activeElement:null},setInterval:()=>{},clearTimeout:()=>{},setTimeout:()=>{},alert:e=>{throw Error(e)},console,URLSearchParams,FormData};
+vm.createContext(ctx);vm.runInContext(source,ctx);
+const schema={products_read:true,products_write:false,products_delete:false,stock_adjust:false,stock_in_read:true,stock_in_delete:false,stock_out_read:false,stock_out_delete:false,transactions_read:true,transactions_all:false,transactions_delete:false,barcode_print:true,sell:false};
+ctx.api=async url=>url==='/gems/api/session'?{admin:false,profile:'custom',permissions:schema}:url.includes('/history')?{rows:[]}:{items:[]};
+(async()=>{
+ vm.runInContext("tab='in'",ctx);await ctx.render();
+ assert(content.innerHTML.includes('id="printSelectedLabels"'));assert(content.innerHTML.includes('id="selectAll"'));assert(!content.innerHTML.includes('id="deleteSelected"'));assert(!content.innerHTML.includes('data-delete'));
+ assert(!root.innerHTML.includes('data-tab="staff"'));assert(!root.innerHTML.includes('data-tab="backup"'));assert(!root.innerHTML.includes('data-tab="sell"'));
+ vm.runInContext("tab='items'",ctx);await ctx.render();assert(!content.innerHTML.includes('id="new"'));
+ let dialogHtml='';ctx.modal=html=>{dialogHtml=html;return {querySelector:q=>dialogHtml.includes('id="'+q.slice(1)+'"')?{}:null};};
+ ctx.restock({id:1,name:'Ruby',code:'R1',quantity:1,price:100});assert(!dialogHtml.includes('id="editProduct"'));assert(!dialogHtml.includes('id="deleteItem"'));assert(!dialogHtml.includes('id="receiveStock"'));assert(dialogHtml.includes('id="labelProduct"'));
+ schema.products_write=true;vm.runInContext("tab='items'",ctx);await ctx.render();assert(content.innerHTML.includes('id="new"'));
+ ctx.restock({id:1,name:'Ruby',code:'R1',quantity:1,price:100});assert(dialogHtml.includes('id="editProduct"'));assert(!dialogHtml.includes('id="receiveStock"'));assert(!dialogHtml.includes('id="deleteItem"'));
+ schema.barcode_print=false;vm.runInContext("tab='in'",ctx);await ctx.render();assert(!content.innerHTML.includes('id="printSelectedLabels"'));assert(!content.innerHTML.includes('id="selectAll"'));
+ schema.stock_in_delete=true;await ctx.render();assert(content.innerHTML.includes('id="deleteSelected"'));assert(content.innerHTML.includes('id="selectAll"'));
+ console.log('Passed non-admin navigation, Stock In print without delete, read-only Products, metadata edit without stock adjustment, revoked print button and separate delete permission.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_item,Gems item,model_gems_item,gems_pos.group_manager,1,1,0,0
+access_movement,Gems movement,model_gems_movement,gems_pos.group_manager,1,0,0,0
+access_voucher,Gems voucher,model_gems_voucher,gems_pos.group_manager,1,0,0,0
+access_line,Gems line,model_gems_line,gems_pos.group_manager,1,0,0,0
+access_expense,Gems expense,model_gems_expense,gems_pos.group_manager,1,0,0,0

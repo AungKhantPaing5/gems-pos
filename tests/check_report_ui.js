@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),crypto=require('crypto').webcrypto,path=require('path');
+const source=fs.readFileSync(path.join(__dirname,'../addons/gems_pos/static/src/app.js'),'utf8').replace('\nrender().catch(error);\n','\n');
+const ctx={crypto,document:{querySelector:q=>q==='#app'?{innerHTML:''}:q==='#csrf'?{value:'x'}:null},setInterval:()=>{},alert:e=>{throw Error(e)},URLSearchParams,FormData};
+vm.createContext(ctx);vm.runInContext(source,ctx);
+vm.runInContext('admin=false;permissions={};',ctx);assert(!ctx.allowedTabs().some(t=>t[0]==='reports'));
+vm.runInContext('admin=true',ctx);assert(ctx.allowedTabs().some(t=>t[0]==='reports'));
+const keys=['stock_in','stock_out','sold_quantity','sales_count','revenue','discount','cost','missing_cost_quantity','expenses'];const row=Object.fromEntries(keys.map(k=>[k,0]));Object.assign(row,{period:'2026-01',gross_profit:null,net_profit:null,missing_cost_quantity:1});
+ctx.api=async()=>({year:2026,month:1,total:row,rows:[row],expense_rows:[{id:1,date:'2026-01-01',name:'<script>bad()</script>',amount:100,staff:'Admin'}]});
+const form={elements:{year:{value:'2026'},month:{value:'1'}}};const nodes={'#reportFilter':form,'#newExpense':{}};const c={innerHTML:'',querySelector:q=>nodes[q],querySelectorAll:()=>[]};
+(async()=>{await ctx.renderReports(c,0);assert(c.innerHTML.includes('Cost missing'));assert(c.innerHTML.includes('/gems/reports/excel?year=2026&month=1'));assert(c.innerHTML.includes('/gems/reports/pdf?year=2026&month=1'));assert(c.innerHTML.includes('&lt;script&gt;'));assert(!c.innerHTML.includes('<script>bad()'));assert(c.innerHTML.includes('Save as PDF'));console.log('Passed admin-only report navigation, monthly export links, missing-cost state and escaped expense descriptions.');})().catch(e=>{console.error(e);process.exitCode=1;});

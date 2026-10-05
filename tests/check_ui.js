@@ -1,0 +1,33 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const s=fs.readFileSync(path.join(__dirname,'../addons/gems_pos/static/src/app.js'),'utf8');
+const barcode=s.slice(s.indexOf('const code128Patterns='),s.indexOf('function labelDialog'));
+const ctx={esc:s=>String(s).replace(/[&<>"']/g,'_')};vm.createContext(ctx);vm.runInContext(barcode+';this.svg=barcodeSvg;this.patterns=code128Patterns',ctx);
+function decode(svg){const bars=[...svg.matchAll(/<rect x="(\d+)" y="0" width="(\d+)" height="36"\/>/g)].map(m=>({x:+m[1],w:+m[2]}));const widths=[];bars.forEach((b,i)=>{widths.push(b.w);if(i<bars.length-1)widths.push(bars[i+1].x-b.x-b.w);});const vals=[];for(let i=0;i<widths.length;){const n=widths.length-i===7?7:6;const pat=widths.slice(i,i+n).join('');const v=ctx.patterns.indexOf(pat);assert(v>=0);vals.push(v);i+=n;}assert.equal(vals[0],104);assert.equal(vals.at(-1),106);const data=vals.slice(1,-2);assert.equal(vals.at(-2),(104+data.reduce((sum,v,i)=>sum+v*(i+1),0))%103);return String.fromCharCode(...data.map(v=>v+32));}
+for(const code of ['R001','1234567890','GEM-A/01',Array(32).fill('Z').join('')])assert.equal(decode(ctx.svg(code)),code);
+for(const code of ['','မြန်မာ','A B','X'.repeat(33)])assert.throws(()=>ctx.svg(code));
+const sel=s.slice(s.indexOf('function bindHistorySelection'),s.indexOf('const code128Patterns'));
+let renders=0,posts=[];const boxes=[1,2,3].map(id=>({dataset:{select:String(id)},checked:false})),all={},button={};
+const c={querySelectorAll:()=>boxes,querySelector:q=>q==='#selectAll'?all:q==='#deleteSelected'?button:null};
+const selectionContext={historySelection:new Set(),deleting:false,canDelete:()=>true,tab:'in',confirm:()=>true,error:e=>{throw e},api:async(url,data)=>posts.push({url,data}),render:async()=>renders++};vm.createContext(selectionContext);vm.runInContext(sel,selectionContext);selectionContext.bindHistorySelection(c);
+all.checked=true;all.onchange();assert(boxes.every(b=>b.checked));assert.equal(button.textContent,'Delete selected (3)');boxes[1].checked=false;boxes[1].onchange();assert(all.indeterminate);assert.equal(button.textContent,'Delete selected (2)');
+(async()=>{await button.onclick();assert.equal(posts[0].data.record_ids,'[1,3]');assert.equal(selectionContext.historySelection.size,0);assert.equal(renders,1);console.log('Passed Code128 decoded content/checksum/quiet zones, invalid code rejection, select all/partial selection, bulk POST IDs and reset.');})().catch(e=>{console.error(e);process.exitCode=1;});
+const searchBlock=s.slice(s.indexOf(' const search=c.querySelector'),s.indexOf(" c.querySelector('#prev').onclick"));
+const input={value:'REMOTE001',focus:()=>{},select:()=>{},setSelectionRange:()=>{}},findButton={};let scanCalls=[];
+const scanCtx={c:{querySelector:q=>q==='#search'?input:findButton},document:{querySelector:()=>input},query:'',page:7,searchTimer:null,clearTimeout:()=>{},setTimeout:()=>{},api:async url=>{scanCalls.push(url);return {item:{id:99,code:'REMOTE001'}};},render:async()=>{},error:e=>{throw e}};
+vm.createContext(scanCtx);vm.runInContext(searchBlock,scanCtx);
+(async()=>{await input.onkeydown({key:'Enter',preventDefault:()=>{}});assert.equal(scanCalls[0],'/gems/api/scan?code=REMOTE001');assert.equal(scanCtx.query,'REMOTE001');assert.equal(scanCtx.page,0);console.log('Passed scanner Enter exact lookup beyond current page and search reset.');})().catch(e=>{console.error(e);process.exitCode=1;});
+
+const docCtx={esc:s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))};
+vm.createContext(docCtx);vm.runInContext(s.slice(s.indexOf('const code128Patterns='),s.indexOf('function labelBatchDialog')),docCtx);
+const products=[{name:'မြန်မာပတ္တမြား',code:'GEM-01',copies:20},{name:'Pearl <script>',code:'GEM-02',copies:17}];
+const html=docCtx.buildLabelDocument(products,48,30,'a4');
+assert.equal((html.match(/class="label"/g)||[]).length,37);assert.equal((html.match(/class="sheet"/g)||[]).length,2);assert(html.includes('repeat(4,48mm)'));assert(html.includes('size:A4'));assert(html.includes('Pearl &lt;script&gt;'));assert(html.includes('မြန်မာပတ္တမြား'));
+assert.equal((docCtx.buildLabelDocument([{...products[0],copies:36}],48,30,'a4').match(/class="sheet"/g)||[]).length,1);
+assert.equal((docCtx.buildLabelDocument([{...products[0],copies:3}],48,30,'roll').match(/class="sheet"/g)||[]).length,3);
+for(const copies of [0,1.2,1001])assert.throws(()=>docCtx.buildLabelDocument([{...products[0],copies}],48,30,'a4'));
+assert.throws(()=>docCtx.buildLabelDocument([{...products[0],copies:600},{...products[1],copies:600}],48,30,'a4'));
+console.log('Passed batch label counts, A4 36/37 pagination, roll job pagination, Myanmar text, escaping and quantity limits.');
+const pb={},db={},sa={},pbBoxes=[{dataset:{select:'21'},checked:false}],pbSelection=new Set([21]);let printPost=null,printedProducts=null;
+const pbCtx={historySelection:pbSelection,deleting:false,canDelete:()=>true,tab:'in',confirm:()=>true,error:e=>{throw e},api:async(url,data)=>{printPost={url,data};return {items:[{id:1,code:'CURRENT',name:'မြန်မာ',received:3}]};},labelBatchDialog:products=>printedProducts=products,render:async()=>{}};
+vm.createContext(pbCtx);vm.runInContext(sel,pbCtx);pbCtx.bindHistorySelection({querySelectorAll:()=>pbBoxes,querySelector:q=>q==='#selectAll'?sa:q==='#deleteSelected'?db:pb});assert(!pb.disabled);assert(pb.textContent.includes('(1)'));
+(async()=>{await pb.onclick();assert.equal(printPost.url,'/gems/api/stockin-labels');assert.equal(printPost.data.record_ids,'[21]');assert.equal(printedProducts[0].code,'CURRENT');assert.equal(pbSelection.size,1);console.log('Passed Stock In selected-print button route, selected IDs, current item data and preserved selection.');})().catch(e=>{console.error(e);process.exitCode=1;});

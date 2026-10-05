@@ -1,0 +1,1 @@
+{'name': 'Gems POS', 'version': '19.0.13.0.0', 'depends': ['web'], 'license': 'LGPL-3', 'application': True, 'data': ['security/groups.xml', 'security/ir.model.access.csv', 'views/views.xml']}

@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Run install.sh first}
+    volumes: ["db-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo"]
+      interval: 5s
+      retries: 20
+  odoo:
+    image: odoo:19.0
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      HOST: db
+      USER: odoo
+      PASSWORD: ${DB_PASSWORD}
+    command: ["odoo", "--database=gemspos", "--db-filter=^gemspos$", "--no-database-list", "--workers=0", "--max-cron-threads=1", "--proxy-mode"]
+    ports: ["127.0.0.1:8070:8069"]
+    volumes: ["odoo-data:/var/lib/odoo", "./addons:/mnt/extra-addons", "./maintenance/key:/run/gems-maintenance/key:ro"]
+volumes:
+  db-data:
+  odoo-data:
