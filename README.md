@@ -16,6 +16,10 @@ On an empty Ubuntu 24.04 VPS the installer configures official Docker Engine/Com
 
 Only Nginx is publicly exposed; Odoo and maintenance listen on loopback ports 8070 and 8099. If those ports belong to another application, installation stops before database initialization. The HTTP site matches the VPS IPv4 explicitly without replacing unrelated Nginx sites. Failed Nginx validation restores the previous IP-site configuration. Fresh installs require Ubuntu 24.04 with systemd; existing Docker runtime packages are not replaced.
 
+## Optional domain and HTTPS
+
+Keep the one-command installer above for HTTP IP access. For DNS records, a separate HTTPS command, existing-domain-site handling and automatic certificate renewal checks, follow **[HTTPS.md](HTTPS.md)**. The optional helper accepts your chosen domain; no domain is hardcoded in the installer.
+
 ## Existing WSL deployment
 
 Do not install another full project. Update the existing project path:
