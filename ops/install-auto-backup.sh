@@ -11,7 +11,7 @@ if ! rclone listremotes | grep -Fxq 'vultr:'; then
   echo 'Exit rclone config, then run this installer again.'
   exit 2
 fi
-read -r -p 'Vultr remote folder (example: vultr:payapi-gems-backups): ' destination
+read -r -p 'Vultr remote folder (example: vultr:gems-pos-backups): ' destination
 [[ "$destination" =~ ^vultr:[A-Za-z0-9._/-]+$ ]] || { echo 'Use a bucket/path without spaces or quotes.'; exit 1; }
 rclone mkdir "$destination"
 testfile="${destination%/}/.gems-pos-backup-write-test"

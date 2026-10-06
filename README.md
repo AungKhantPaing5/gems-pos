@@ -5,16 +5,16 @@ Gem shop POS with admin/staff pages, per-account permissions, product photos, un
 ## Ubuntu 24.04 VPS: one command
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/AungKhantPaing5/gems-pos/main/bootstrap.sh | bash -s -- --domain payapi.uk'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/AungKhantPaing5/gems-pos/main/bootstrap.sh | bash'
 ```
 
-Run as root. Existing `/root/gems-pos` is detected automatically: back up and update the addon, retain Compose, HTTPS, accounts, secrets, maintenance configuration, scheduled backups and shop data. This mode never creates a second database or resets accounts.
+Run as root. Open **http://YOUR_VPS_IP** after installation; `/` redirects to `/gems`. The installer detects the public IPv4 automatically. No domain, DNS record or certificate is required. Allow inbound TCP **80** in the Vultr/cloud firewall and keep your SSH access allowed. If automatic IP detection fails, append `--ip YOUR_VPS_IP` after `bash -s --` in the command above.
 
-On an empty VPS the installer configures official Docker Engine/Compose, PostgreSQL 16, Odoo 19, Nginx, the maintenance service, a daily full local backup and HTTPS. Initial website accounts are `admin/admin` and `user/user`, matching the existing project defaults. Database password and maintenance signing key are generated per server. Optional certificate email: append `--email you@example.com`.
+Existing `/root/gems-pos` is detected automatically: take a backup, update the addon and add an HTTP IP site. Accounts, secrets, Compose, maintenance configuration, scheduled backups and shop data are retained. This mode never creates a second database or resets accounts. Existing domain/TLS sites are left in place.
 
-Before a fresh deployment, point the domain A record to the VPS, remove incorrect AAAA records, and permit TCP 80 and 443 in your cloud firewall. DNS/ACME failure leaves the initialized shop intact; retry `bash /root/gems-pos/scripts/enable-https.sh payapi.uk` after fixing DNS/firewall. It does not reset accounts or reinstall the database. An existing shop's HTTPS is preserved.
+On an empty Ubuntu 24.04 VPS the installer configures official Docker Engine/Compose, PostgreSQL 16, Odoo 19, Nginx, the maintenance service and a daily full local backup. Initial website accounts are `admin/admin` and `user/user`; change them after signing in. Database password and maintenance signing key are generated per server.
 
-The root domain redirects to `/gems`. Only Nginx is publicly exposed; Odoo and maintenance listen on loopback ports 8070 and 8099. If those ports belong to another application, installation stops before database initialization. It never stops arbitrary containers or changes unrelated Nginx sites. Fresh installs require Ubuntu 24.04 with systemd; it does not replace existing Docker runtime packages.
+Only Nginx is publicly exposed; Odoo and maintenance listen on loopback ports 8070 and 8099. If those ports belong to another application, installation stops before database initialization. The HTTP site matches the VPS IPv4 explicitly without replacing unrelated Nginx sites. Failed Nginx validation restores the previous IP-site configuration. Fresh installs require Ubuntu 24.04 with systemd; existing Docker runtime packages are not replaced.
 
 ## Existing WSL deployment
 
@@ -42,4 +42,4 @@ Full administrators can manage website users and their View/Add/Edit/Delete/Stoc
 
 No database dumps, server environment, uploaded photos, customer records, tokens or server-specific passwords are included. `.gitignore` excludes these. Bundled Noto Sans Myanmar includes its license. Module license is LGPL-3; Docker/Odoo/PostgreSQL/fonts keep their own licenses.
 
-Offline tests cover report math and date boundaries, Excel readback, authorization, cost snapshots, stock cancellation and correction, permissions, barcode decoding, selection/printing and scanner behavior. `tests/check_deploy.py` uses mocked Docker/system commands to test install/update selection, existing-data preservation, invalid targets and bootstrap network failure. Full Docker/systemd/ACME integration must be checked on the actual VPS.
+Offline tests cover report math and date boundaries, Excel readback, authorization, cost snapshots, stock cancellation and correction, permissions, barcode decoding, selection/printing and scanner behavior. `tests/check_deploy.py` uses mocked Docker/system commands to test install/update selection, existing-data preservation, invalid targets and bootstrap network failure. `tests/check_ip_access.py` checks IP detection, proxy routing, configuration ownership and rollback. Full Docker/systemd/Nginx integration must be checked on the actual VPS.

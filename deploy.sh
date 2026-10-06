@@ -3,23 +3,31 @@ set -euo pipefail
 umask 077
 kit="$(cd "$(dirname "$0")" && pwd)"
 target=/root/gems-pos
-domain=payapi.uk
-email=''
+vps_ip=''
 mode=auto
 while (($#)); do
  case "$1" in
   --target) target="${2:?Missing target}"; shift 2;;
-  --domain) domain="${2:?Missing domain}"; shift 2;;
-  --email) email="${2:?Missing email}"; shift 2;;
+  --ip) vps_ip="${2:?Missing VPS IPv4}"; shift 2;;
   --install) mode=install; shift;;
   --update) mode=update; shift;;
-  --help) echo 'Usage: deploy.sh [--target /root/gems-pos] [--domain payapi.uk] [--email address] [--install|--update]'; exit 0;;
+  --help) echo 'Usage: deploy.sh [--target /root/gems-pos] [--ip YOUR_VPS_IP] [--install|--update]'; exit 0;;
   *) echo "Unknown argument: $1"; exit 1;;
  esac
 done
 [[ "$EUID" == 0 ]] || { echo 'Root/sudo required.'; exit 1; }
 [[ "$target" =~ ^/[A-Za-z0-9._/-]+$ && "$target" != / && "$target" != /root && "$target" != /home && "$target" != /opt ]] || { echo 'Use an absolute application folder without spaces.'; exit 1; }
-[[ "$domain" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,}$ && "$domain" != *..* ]] || { echo 'Valid domain required.'; exit 1; }
+if [[ -n "$vps_ip" ]]; then
+ python3 - "$vps_ip" <<'PYCODE'
+import ipaddress,sys
+try:
+ ip=ipaddress.IPv4Address(sys.argv[1])
+ if ip.is_unspecified or ip.is_multicast or ip.is_loopback:raise ValueError()
+except ValueError:raise SystemExit('Valid VPS IPv4 required.')
+PYCODE
+fi
+ip_args=()
+[[ -z "$vps_ip" ]] || ip_args=(--ip "$vps_ip")
 # Prevent two deploys. Root-controlled lock rather than the downloaded temp folder.
 mkdir -p /run/lock
 exec 8>/run/lock/gems-pos-deploy.lock
@@ -30,10 +38,14 @@ if [[ -f "$target/compose.yml" && -d "$target/addons/gems_pos" && ! -f "$target/
  [[ -f "$target/scripts/backup.sh" ]] || { echo 'Existing project lacks scripts/backup.sh; no files were replaced.'; exit 1; }
  echo "Existing Gems POS detected: $target. Taking a backup and updating to v13."
  bash "$kit/apply-update.sh" "$target"
- if [[ -f "$target/.nginx-owned" && ! -f "/etc/letsencrypt/live/$domain/fullchain.pem" ]]; then
-  bash "$kit/scripts/enable-https.sh" "$domain" "$email"
+ if [[ "$(uname -r)" == *[Mm]icrosoft* ]]; then
+  echo 'WSL update complete. Open http://localhost:8080/gems and press Ctrl+Shift+R.'
+ else
+  command -v nginx >/dev/null || { apt-get update; apt-get install -y nginx; }
+  install -m 755 "$kit/scripts/configure-ip-access.py" "$target/scripts/configure-ip-access.py"
+  python3 "$target/scripts/configure-ip-access.py" "$target" "${ip_args[@]}"
+  echo 'Press Ctrl+Shift+R. Existing accounts and data were preserved.'
  fi
- echo "Done. Open your existing POS URL (https://$domain/gems) and press Ctrl+Shift+R."
  exit 0
 fi
 [[ "$mode" != update ]] || { echo 'No existing Gems POS at the target path.'; exit 1; }
@@ -42,9 +54,9 @@ if [[ -e "$target" && ! -f "$target/.installing" ]] && [[ -n "$(ls -A "$target")
 fi
 source /etc/os-release
 [[ "$ID" == ubuntu && "$VERSION_ID" == 24.04 ]] || { echo 'Fresh cloud installer supports Ubuntu 24.04. Existing deployments can use --update.'; exit 1; }
-if [[ "$(uname -r)" == *[Mm]icrosoft* ]]; then echo 'Use the WSL full package for a new local test; this fresh installer configures cloud systemd/HTTPS.'; exit 1; fi
+if [[ "$(uname -r)" == *[Mm]icrosoft* ]]; then echo 'Use the WSL full package for a new local test; this fresh installer configures cloud systemd/HTTP IP access.'; exit 1; fi
 apt-get update
-apt-get install -y ca-certificates curl python3 util-linux nginx
+apt-get install -y ca-certificates curl python3 util-linux iproute2 nginx
 if ! command -v docker >/dev/null; then
  # Do not replace an unrelated existing container runtime.
  for pkg in docker.io podman-docker containerd runc; do
@@ -119,38 +131,6 @@ if [[ ! -f .install-users-done ]]; then
  docker compose run --rm -T odoo odoo shell -d gemspos --no-http < setup-users.py
  touch .install-users-done
 fi
-# Nginx site belongs only to this new installation. Existing sites are not overwritten.
-site="/etc/nginx/sites-available/gems-pos-$domain"
-if [[ -e "$site" && ! -f .nginx-owned ]]; then
- echo "Nginx site already exists: $site. No configuration replaced."; exit 1
-fi
-cat > "$site" <<EOF
-server {
-    listen 80;
-    server_name $domain;
-    client_max_body_size 4m;
-    location = / { return 302 /gems; }
-    location /gems-maintenance/ {
-        client_max_body_size 1024m;
-        proxy_pass http://127.0.0.1:8099;
-        proxy_read_timeout 1900s;
-        proxy_send_timeout 1900s;
-        proxy_request_buffering off;
-        proxy_set_header Authorization \$http_authorization;
-    }
-    location / {
-        proxy_pass http://127.0.0.1:8070;
-        proxy_set_header Host \$http_host;
-        proxy_set_header X-Forwarded-Host \$http_host;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 120s;
-    }
-}
-EOF
-touch .nginx-owned
-ln -sfn "$site" "/etc/nginx/sites-enabled/gems-pos-$domain"
-nginx -t
 cat > /etc/systemd/system/gems-maintenance.service <<EOF
 [Unit]
 Description=Gems POS administrator maintenance
@@ -169,8 +149,6 @@ systemctl daemon-reload
 systemctl enable --now gems-maintenance
 systemctl restart gems-maintenance
 docker compose up -d odoo
-systemctl enable --now nginx
-systemctl reload nginx
 # Daily local backup; existing offsite schedules are left as configured.
 if [[ ! -e /etc/systemd/system/gems-pos-auto-backup.timer ]]; then
  cat > /etc/systemd/system/gems-pos-local-backup.service <<EOF
@@ -198,8 +176,8 @@ EOF
  systemctl daemon-reload
  systemctl enable --now gems-pos-local-backup.timer
 fi
-# Mark installation complete before certificate issuance: a failed DNS challenge
-# must not cause a retry to recreate a shop or reset accounts.
+# Mark database initialization complete before configuring public IP access;
+# a web configuration failure must not reset the database/accounts on retry.
 touch .installed
 rm -f .installing
 python3 - <<'PY'
@@ -211,5 +189,5 @@ for attempt in range(60):
  except Exception:time.sleep(2)
 else:raise SystemExit('Odoo is still starting. Inspect: docker compose logs --tail=80 odoo')
 PY
-bash "$kit/scripts/enable-https.sh" "$domain" "$email"
-echo "Ready: https://$domain/gems — initial accounts admin/admin and user/user."
+python3 "$target/scripts/configure-ip-access.py" "$target" "${ip_args[@]}"
+echo 'Initial accounts: admin/admin and user/user.'

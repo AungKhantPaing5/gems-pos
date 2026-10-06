@@ -1,19 +1,20 @@
-# Vultr Ubuntu 24.04 — Gems POS daily backups and payapi.uk
+# Vultr Ubuntu 24.04 — Gems POS daily backups and HTTP IP access
 
-This operations kit configures a verified daily application backup, keeps 14 days on the VPS and sends a private copy to Vultr Object Storage with a 30-day remote retention. It expects the existing cloud project at `/root/gems-pos` and its tested `scripts/backup.sh`. It does not alter DNS, Nginx/HTTPS, Odoo compose, credentials, or POS data. Run the current v11 addon update first if it has not been deployed yet.
+This operations kit configures a verified daily application backup, keeps 14 days on the VPS and sends a private copy to Vultr Object Storage with a 30-day remote retention. It expects the existing cloud project at `/root/gems-pos` and its tested `scripts/backup.sh`. It does not alter DNS, Nginx/HTTPS, Odoo compose, credentials, or POS data. Run the current v13 addon update first if it has not been deployed yet.
 
-## 1. Check DNS and HTTPS
+## 1. Check HTTP IP access
 
-The root domain `payapi.uk` needs an A record pointing to the current Vultr instance IPv4. Run on the VPS:
+The GitHub installer detects the VPS public IPv4 and adds HTTP access. Open `http://YOUR_VPS_IP`; the root redirects to `/gems`. Allow TCP 80 in Vultr Firewall and keep SSH allowed. No DNS or certificate setup is required.
 
+Run on the VPS:
+
+```bash
+nginx -t
+curl -I http://127.0.0.1/gems
+curl -I http://127.0.0.1:8070/gems
 ```
-dig @1.1.1.1 payapi.uk A +short
-curl -I https://payapi.uk/gems
-```
 
-Compare the DNS answer with the instance's IPv4 in Vultr Compute. Keep the existing Nginx/Certbot configuration if HTTPS works. For a new domain setup, allow inbound TCP 22, 80 and 443 in Vultr Firewall (keep SSH 22 open) and UFW, set the DNS A record first, then configure Nginx proxy to Odoo at `127.0.0.1:8070` and issue Let's Encrypt TLS with Certbot. Do not publish Odoo's 8070 port to the internet. If `curl` fails, inspect `dig`, `nginx -t`, `curl -I http://127.0.0.1:8070/gems`, and `/var/log/nginx/error.log` before changing the current server block.
-
-For Nginx, preserve the existing `server_name payapi.uk;` block and HTTPS redirect. The POS Odoo service must stay bound to `127.0.0.1:8070`; the existing maintenance proxy must route `/gems-maintenance/` to `127.0.0.1:8099`.
+Odoo stays bound to `127.0.0.1:8070`; `/gems-maintenance/` proxies to `127.0.0.1:8099`. If external access times out while local checks work, check the cloud firewall and the instance's public IPv4. This backup kit does not change web access configuration.
 
 ## 2. Create remote backup storage
 
@@ -32,7 +33,7 @@ cd /root/gems-pos-vultr-ops
 bash install-auto-backup.sh /root/gems-pos
 ```
 
-When prompted, enter a private remote folder such as `vultr:payapi-gems-backups`. The installer checks that it can create and remove a temporary test object, writes a root-only config, enables a daily 03:00 Myanmar-time systemd timer and runs the first backup immediately. The application backup contains PostgreSQL, product photos/filestore, addon and deployment config; it briefly stops Odoo while the consistent database/filestore copies are taken, then starts it again. The offsite object is checked for matching size before success. Local archives older than 14 days are removed only after a verified remote copy exists. Remote Gems archives older than 30 days are removed from this dedicated prefix.
+When prompted, enter a private remote folder such as `vultr:gems-pos-backups`. The installer checks that it can create and remove a temporary test object, writes a root-only config, enables a daily 03:00 Myanmar-time systemd timer and runs the first backup immediately. The application backup contains PostgreSQL, product photos/filestore, addon and deployment config; it briefly stops Odoo while the consistent database/filestore copies are taken, then starts it again. The offsite object is checked for matching size before success. Local archives older than 14 days are removed only after a verified remote copy exists. Remote Gems archives older than 30 days are removed from this dedicated prefix.
 
 Verify:
 
@@ -40,8 +41,8 @@ Verify:
 systemctl list-timers gems-pos-auto-backup.timer
 systemctl status gems-pos-auto-backup.service
 journalctl -u gems-pos-auto-backup.service -n 60 --no-pager
-rclone lsl vultr:payapi-gems-backups
-curl -I https://payapi.uk/gems
+rclone lsl vultr:gems-pos-backups
+curl -I http://127.0.0.1/gems
 ```
 
 If the first run failed, use the `journalctl` output to fix the reported issue, then retry with `systemctl start gems-pos-auto-backup.service`.
