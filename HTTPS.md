@@ -119,3 +119,7 @@ Apt Certbot ဆို command path ကို `certbot` ပြောင်းပ�
 - Certificate issue fail ဖြစ်ရင် data ကို reset မလုပ်ပါနှင့်။ DNS/firewall ပြင်ပြီး SSL command ကို ပြန် run ပါ။
 
 Official references: [Certbot Nginx instructions](https://certbot.eff.org/instructions?ws=nginx&os=snap), [Let's Encrypt HTTP-01](https://letsencrypt.org/docs/challenge-types/).
+
+## Cloudflare proxy + TLS
+
+Cloudflare Full (strict), orange-cloud DNS, origin SSL commands, renewal checks and POS cache settings: [CLOUDFLARE-TLS.md](CLOUDFLARE-TLS.md).

@@ -20,6 +20,10 @@ Only Nginx is publicly exposed; Odoo and maintenance listen on loopback ports 80
 
 Keep the one-command installer above for HTTP IP access. For DNS records, a separate HTTPS command, existing-domain-site handling and automatic certificate renewal checks, follow **[HTTPS.md](HTTPS.md)**. The optional helper accepts your chosen domain; no domain is hardcoded in the installer.
 
+## Cloudflare TLS
+
+For Cloudflare proxy with **Full (strict)**, follow [CLOUDFLARE-TLS.md](CLOUDFLARE-TLS.md): set DNS, issue the origin certificate, then enable the proxy and verify renewal. This uses the separate HTTPS helper and your chosen domain.
+
 ## Existing WSL deployment
 
 Do not install another full project. Update the existing project path:
