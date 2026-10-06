@@ -4,13 +4,13 @@
 
 ## 1. DNS record
 
-Domain DNS ကို လက်ရှိ authoritative nameserver provider မှာ ပြင်ပါ။ ဥပမာ `payapi.uk` ဆိုလျှင်:
+Domain DNS ကို လက်ရှိ authoritative nameserver provider မှာ ပြင်ပါ။ `your-domain.com` က Your Domain အတွက် placeholder ဖြစ်ပါတယ်။ သင့် domain နဲ့ အစားထိုးပါ:
 
 | Type | Name / Host | Value | TTL |
 | --- | --- | --- | --- |
 | A | `@` | သင့် VPS public IPv4 | Auto / 300 |
 
-`VPS_IP` စာသားကို record ထဲမထည့်ပါနှင့်။ Vultr instance ရဲ့ Public IPv4 ကို ထည့်ပါ။ `payapi.uk.com` မဟုတ်ဘဲ `payapi.uk` ဖြစ်ရမယ်။ Cloudflare သုံးရင် initial certificate ထုတ်နေစဉ် **DNS only** ထားပါ။ ဒီ guide က apex domain တစ်ခုပဲ certificate ထုတ်ပါတယ်။ `www` သုံးချင်ရင် www record နဲ့ certificate ထဲ ထပ်ထည့်ဖို့လိုပါတယ်။
+`VPS_IP` စာသားကို record ထဲမထည့်ပါနှင့်။ Vultr instance ရဲ့ Public IPv4 ကို ထည့်ပါ။ သင့်ဝယ်ထားတဲ့ domain နာမည်ကို အတိအကျ ထည့်ပါ။ Cloudflare သုံးရင် initial certificate ထုတ်နေစဉ် **DNS only** ထားပါ။ ဒီ guide က apex domain တစ်ခုပဲ certificate ထုတ်ပါတယ်။ `www` သုံးချင်ရင် www record နဲ့ certificate ထဲ ထပ်ထည့်ဖို့လိုပါတယ်။
 
 ဒီ hostname အတွက် A record အဟောင်းတွေရှိရင် အခြား VPS ကိုညွှန်နေတဲ့ record ကို ပြင်ပါ။ IPv6 ကို အမှန်တကယ် configure မလုပ်ထားရင် ဒီ hostname ရဲ့ မှားနေတဲ့ AAAA record ကို ဖယ်ပါ။ VPS IP ပြောင်းတဲ့အခါ A record ကိုလည်း ပြောင်းပါ။
 
@@ -19,7 +19,7 @@ VPS မှာ:
 ```bash
 apt-get update
 apt-get install -y dnsutils
-DOMAIN=payapi.uk
+DOMAIN=your-domain.com
 dig @1.1.1.1 "$DOMAIN" A +short
 dig @8.8.8.8 "$DOMAIN" A +short
 dig @1.1.1.1 "$DOMAIN" AAAA +short
@@ -55,15 +55,15 @@ Command နှစ်ခုလုံး download အောင်မြင်ပ�
 
 ## 4. HTTPS command
 
-`payapi.uk` နေရာမှာ သင့် domain၊ email နေရာမှာ သင့် email ပြောင်းပါ:
+`your-domain.com` နေရာမှာ သင့် domain၊ email နေရာမှာ သင့် email ပြောင်းပါ:
 
 ```bash
-bash /root/gems-pos/scripts/enable-https.sh payapi.uk you@example.com
+bash /root/gems-pos/scripts/enable-https.sh your-domain.com you@example.com
 ```
 
 Script က domain HTTP Nginx site ကို ထည့်ပြီး `nginx -t` စစ်မယ်၊ Certbot မရှိရင် snap နဲ့ install လုပ်မယ်၊ Let's Encrypt certificate ထုတ်ပြီး domain HTTP ကို HTTPS redirect လုပ်ပေးမယ်။ Command run ခြင်းက Let's Encrypt Terms of Service ကို သဘောတူခြင်း ဖြစ်ပါတယ်။ Terms ကို https://letsencrypt.org/repository/ မှာ ကြည့်နိုင်ပါတယ်။ Certbot က certificate renewal schedule ကို install လုပ်ပေးပါတယ်။
 
-အောင်မြင်ရင် `https://payapi.uk` သို့မဟုတ် `https://payapi.uk/gems` နဲ့ဝင်ပါ။ IP HTTP site က ဆက်ရှိနေပါတယ်။ IP address ကို HTTPS certificate ထုတ်ခြင်း ဒီ script မှာ မပါပါ။
+အောင်မြင်ရင် `https://your-domain.com` သို့မဟုတ် `https://your-domain.com/gems` နဲ့ဝင်ပါ။ IP HTTP site က ဆက်ရှိနေပါတယ်။ IP address ကို HTTPS certificate ထုတ်ခြင်း ဒီ script မှာ မပါပါ။
 
 Script က `/etc/nginx/sites-available/gems-domain-YOUR_DOMAIN` ကို သုံးပါတယ်။ အခြား site မှာ domain နာမည်ပါပြီးသားဆို overwrite မလုပ်ဘဲ ရပ်ပေးပါတယ်။ Script ကဖန်တီးထားတဲ့ site ကို ထပ် run ရင် Certbot ရဲ့ TLS configuration ကို ထိန်းထားပါတယ်။
 
@@ -94,7 +94,7 @@ Snap Certbot အတွက် SSL command:
 
 ```bash
 nginx -t
-/snap/bin/certbot --nginx -d payapi.uk --redirect
+/snap/bin/certbot --nginx -d your-domain.com --redirect
 ```
 
 Email နဲ့ Terms prompt ကို ဖြေပါ။ Certbot ကို apt နဲ့ install လုပ်ထားပြီးသားဆို `/snap/bin/certbot` အစား `certbot` ကို သုံးနိုင်ပါတယ်။ Nginx config files တွေကို မသိဘဲ အကုန်ဖျက်ရန် မလိုပါ။
@@ -102,7 +102,7 @@ Email နဲ့ Terms prompt ကို ဖြေပါ။ Certbot ကို apt 
 ## 6. Verify / renewal
 
 ```bash
-curl -I https://payapi.uk/gems
+curl -I https://your-domain.com/gems
 /snap/bin/certbot certificates
 /snap/bin/certbot renew --dry-run
 systemctl list-timers --all | grep -E 'certbot|snap.certbot'
